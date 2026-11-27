@@ -44,6 +44,18 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Figtree,syste
 .note-h{font-size:14px;color:var(--soft);margin-top:22px}
 @media(max-width:700px){.tools{grid-template-columns:minmax(0,1fr)}.brand{display:none}}
 @media (prefers-reduced-motion:reduce){.tool{transition:none}.tool:hover{transform:none}}
+.prog-card{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;margin-top:20px;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px 22px}
+.prog-card h2{font:400 22px/1.2 "Young Serif",Georgia,serif;margin:0 0 4px}
+.prog-card p{margin:0;color:var(--soft)}
+.prog-card button,.xp button{font:inherit;font-size:16px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:0 16px;cursor:pointer}
+.prog-card button.pri,.xp button.pri{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:500}
+.xp{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.xp-box{background:var(--paper);color:var(--ink);border-radius:16px;max-width:720px;width:100%;max-height:92vh;overflow:auto;padding:20px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5)}
+.xp h2{font:400 24px/1.2 "Young Serif",Georgia,serif;margin:0 0 6px}
+.xp p{margin:0 0 12px;color:var(--soft)}
+.xp textarea{width:100%;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);resize:vertical}
+.xp-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.xp-note{margin:10px 0 0!important;font-size:14px}
 
 /* ===== lectura ===== */
 
@@ -224,9 +236,27 @@ th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
         </div>
       </a>
     </div>
+    <div class="prog-card">
+      <div><h2>Tu progreso</h2><p>Exporta los resultados de las dos herramientas para revisarlos con Claude en una conversación.</p></div>
+      <button class="pri" data-export>Exportar progreso</button>
+    </div>
     <p class="note-h">Si al pulsar «Conectar piano» sale un aviso de bloqueo, abre este archivo .html directamente en Chrome o Edge.</p>
   </div>
 </section>
+
+<div class="xp" id="xp" hidden role="dialog" aria-modal="true" aria-labelledby="xp-t">
+  <div class="xp-box">
+    <h2 id="xp-t">Exportar progreso</h2>
+    <p>Copia este texto y pégalo en una conversación con Claude para revisar cómo vas.</p>
+    <textarea id="xp-txt" readonly rows="12"></textarea>
+    <div class="xp-row">
+      <button class="pri" id="xp-copy">Copiar texto</button>
+      <button id="xp-dl">Descargar copia (.json)</button>
+      <button id="xp-close">Cerrar</button>
+    </div>
+    <p class="xp-note" id="xp-note"></p>
+  </div>
+</div>
 
 <section class="view" id="v-lectura" hidden><div class="wrap">
   <header>
@@ -301,7 +331,7 @@ th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
     <div class="card">
       <h2>Tus notas más difíciles</h2>
       <ul class="hard" id="l-hard"></ul>
-      <button id="l-reset" style="margin-top:12px">Borrar historial</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button class="pri" data-export>Exportar progreso</button><button id="l-reset">Borrar historial</button></div>
     </div>
     <div class="card">
       <h2>Cómo usarlo</h2>
@@ -361,7 +391,7 @@ th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
       <h2>Historial de esta escala</h2>
       <div class="streak" id="e-streak"></div>
       <div class="scroll"><table id="e-hist"></table></div>
-      <button id="e-clear" style="margin-top:12px">Borrar historial</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button class="pri" data-export>Exportar progreso</button><button id="e-clear">Borrar historial</button></div>
     </div>
   </div>
 
@@ -561,6 +591,9 @@ function finish(){
   $('dtitle').textContent=pct>=90&&t<2?'¡Listo para subir de nivel!':pct>=75?'Buena ronda':'Sigue así';
   $('dtext').textContent=`${pct} % a la primera · ${t} s de media`+(worst.length?` · Repasa: ${worst.join(', ')}`:'');
   $('done').classList.add('show');cur=null;render();
+  try{const h=JSON.parse(localStorage.getItem('lect-hist')||'[]');
+    h.push({d:Date.now(),clef:S.clef,lvl:S.lvl,scale:S.scale,acc:S.acc,flow:S.flow,oct:S.oct,n:ses.n,pct,avg:+t,worst});
+    localStorage.setItem('lect-hist',JSON.stringify(h.slice(-300)))}catch(e){}
 }
 function restart(){queue=[];ses={n:0,ok:0,times:[],streak:0,errs:{}};cur=null;prev=null;$('done').classList.remove('show');upd();next()}
 
@@ -680,9 +713,11 @@ function finish(partial){
   res={reg:clamp(100-cv*250),vol:clamp(100-vsd*3),errs,partial,bpm:Math.round(60000/M/S.npt),sync:sy.length?Math.round(mean(sy.map(Math.abs))):null,M,
        d:Date.now(),sc:S.sc,harm:S.harm,hand:S.hand,oct:S.oct};
   res.clean=!partial&&errs===0&&res.reg>=80;
-  if(!demo){hist.push({d:res.d,sc:S.sc,harm:!!(P.sc.minor&&S.harm),hand:S.hand,oct:S.oct,bpm:res.bpm,reg:res.reg,vol:res.vol,errs,clean:res.clean,partial});save()}
   say(demo?`${P.title} · ${HN[S.hand].toLowerCase()} <span class="tag">Ejemplo</span>`:`${partial?'Intento incompleto':'Escala terminada'}: ${P.title}. Toca el ${P.names[0]} para repetir.`);
-  draw();diagnose();renderHist();
+  draw();const iss=diagnose();
+  if(!demo){hist.push({d:res.d,sc:S.sc,harm:!!(P.sc.minor&&S.harm),hand:S.hand,oct:S.oct,bpm:res.bpm,npt:S.npt,met:mt?S.bpm:null,reg:res.reg,vol:res.vol,errs,sync:res.sync,clean:res.clean,partial,
+    issues:iss.filter(x=>x[0]==='bad').map(x=>x[1].replace(/<[^>]+>/g,'').replace(/ Es un paso del pulgar.*$/,' Paso del pulgar.').trim()).slice(0,4)});save()}
+  renderHist();
 }
 function fingers(i){const r=`dedo ${P.fR[i]} MD`,l=`dedo ${P.fL[i]} MI`;return S.hand==='R'?r:S.hand==='L'?l:r+', '+l}
 function thumb(i){
@@ -715,6 +750,7 @@ function diagnose(){
   if(res.partial)out.push(['bad','La escala quedó a medias: tócala entera, subiendo y bajando.']);
   if(!out.length)out.push(['ok',res.clean?'Escala limpia y regular. Si llevas tres así seguidas, sube el metrónomo 4 pulsos.':'Sin errores. Busca más regularidad tocando con el metrónomo.']);
   $('diag').innerHTML=out.slice(0,5).map(([c,t])=>`<li class="${c==='ok'?'ok':''}">${t}</li>`).join('');
+  return out;
 }
 
 /* ---------- gráfico ---------- */
@@ -881,6 +917,67 @@ $('connect').addEventListener('click',async()=>{
   catch(e){$('mstat').textContent='Este visor bloquea MIDI. Abre el archivo .html directamente en Chrome.'}
 });
 route();
+
+/* exportar progreso */
+{
+  const get=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}};
+  const SCN={do:'Do mayor',sol:'Sol mayor',fa:'Fa mayor',re:'Re mayor',la:'La menor',mi:'Mi menor'};
+  const scName=x=>(SCN[x.sc]||x.sc)+(x.sc==='la'||x.sc==='mi'?(x.harm?' armónica':' natural'):'');
+  const HAND={R:'MD',L:'MI',B:'Juntas'};
+  const fd=d=>{const x=new Date(d),p=n=>String(n).padStart(2,'0');return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`};
+  const NAMES=['Do','Re','Mi','Fa','Sol','La','Si'];
+  const LSC={'':'sin escala',do:'Do mayor',sol:'Sol mayor',fa:'Fa mayor',re:'Re mayor',la:'La menor natural',lah:'La menor armónica',mi:'Mi menor natural',mih:'Mi menor armónica'};
+  const CLEF={t:'Sol',b:'Fa',g:'Sol y Fa'};
+  function build(){
+    const eh=get('esc-hist')||[],lh=get('lect-hist')||[],ls=get('lect-stats')||{};
+    const L=[`# Progreso de piano (exportado ${fd(Date.now())})`,`Piano: Kawai ES60. Datos de las herramientas «Estudio de piano».`,''];
+    L.push('## Analizador de escalas');
+    if(!eh.length)L.push('Sin intentos grabados.');
+    else{
+      L.push('Criterios: «limpia» = sin errores y regularidad ≥ 80. Regularidad y volumen igualado de 0 a 100. Tempo en pulsos por minuto según la figura (negras o corcheas).','');
+      L.push('### Resumen por escala y modo');
+      const g={};eh.forEach(x=>{const k=`${scName(x)} · ${HAND[x.hand]} · ${x.oct} oct.`;(g[k]=g[k]||[]).push(x)});
+      Object.entries(g).forEach(([k,a])=>{
+        const cl=a.filter(x=>x.clean),last=a.slice(-5),m=f=>Math.round(last.reduce((s,x)=>s+x[f],0)/last.length);
+        let st=0;for(let i=a.length-1;i>=0&&a[i].clean;i--)st++;
+        L.push(`- ${k}: ${a.length} intento${a.length===1?'':'s'} (${cl.length} limpio${cl.length===1?'':'s'}), del ${fd(a[0].d).slice(0,10)} al ${fd(a[a.length-1].d).slice(0,10)}. Últimos 5: regularidad media ${m('reg')}, volumen ${m('vol')}, tempo ${m('bpm')}. Mejor tempo limpio: ${cl.length?Math.max(...cl.map(x=>x.bpm)):'–'}. Limpias seguidas ahora: ${st}.`);
+      });
+      L.push('','### Intentos (últimos 80, del más antiguo al más reciente)','fecha;escala;manos;oct;tempo;figura;metrónomo;regularidad;volumen;errores;desfase_manos_ms;completa;observaciones');
+      eh.slice(-80).forEach(x=>L.push([fd(x.d),scName(x),HAND[x.hand],x.oct,x.bpm,x.npt==2?'corcheas':x.npt==1?'negras':'',x.met||'',x.reg,x.vol,x.errs,x.sync??'',x.partial?'no':'sí',(x.issues||[]).join(' | ')].join(';')));
+    }
+    L.push('','## Entrenador de lectura');
+    if(!lh.length)L.push('Sin rondas completas guardadas (las rondas «Sin fin» no se guardan).');
+    else{
+      L.push('### Rondas (últimas 40)','fecha;clave;nivel;escala;vista;notas;acierto_primera_%;tiempo_medio_s;a_repasar');
+      lh.slice(-40).forEach(x=>L.push([fd(x.d),CLEF[x.clef],x.lvl,LSC[x.scale||'']+(x.scale?'':x.acc?' (con alteraciones)':''),x.flow?'partitura':'una nota',x.n,x.pct,x.avg,(x.worst||[]).join(', ')].join(';')));
+    }
+    const rows=Object.entries(ls).map(([k,s])=>{const c=k[0],[d,a]=k.slice(1).split('_').map(Number);
+      return{n:NAMES[d%7]+(a>0?'♯':a<0?'♭':'')+Math.floor(d/7),c:CLEF[c],seen:s.seen,err:s.err,t:s.seen?s.t/s.seen/1000:0}}).filter(r=>r.seen>=2);
+    if(rows.length){
+      L.push('','### Notas más difíciles (todas las sesiones)','nota;clave;vistas;fallos;%fallo;tiempo_medio_s');
+      rows.sort((a,b)=>b.err/b.seen-a.err/a.seen||b.t-a.t).slice(0,15).forEach(r=>L.push([r.n,r.c,r.seen,r.err,Math.round(100*r.err/r.seen),r.t.toFixed(1)].join(';')));
+      const tot=rows.reduce((s,r)=>s+r.seen,0);L.push(`Total de notas leídas: ${tot}.`);
+    }
+    return L.join('\n');
+  }
+  const xp=$('xp');
+  document.addEventListener('click',e=>{if(e.target.closest('[data-export]')){$('xp-txt').value=build();$('xp-note').textContent='';xp.hidden=false;$('xp-copy').focus()}});
+  $('xp-close').addEventListener('click',()=>xp.hidden=true);
+  xp.addEventListener('click',e=>{if(e.target===xp)xp.hidden=true});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')xp.hidden=true});
+  $('xp-copy').addEventListener('click',async()=>{
+    const ta=$('xp-txt');
+    try{await navigator.clipboard.writeText(ta.value);$('xp-note').textContent='Copiado. Pégalo en una conversación con Claude.'}
+    catch(err){ta.focus();ta.select();try{document.execCommand('copy');$('xp-note').textContent='Copiado.'}catch(e2){$('xp-note').textContent='No he podido copiar solo: el texto está seleccionado, cópialo con Ctrl+C o manteniendo pulsado.'}}
+  });
+  $('xp-dl').addEventListener('click',()=>{
+    try{const data={exportado:new Date().toISOString(),escalas:get('esc-hist')||[],lectura_rondas:get('lect-hist')||[],lectura_notas:get('lect-stats')||{}};
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:'application/json'}));
+      a.download=`progreso-piano-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();
+      $('xp-note').textContent='Descarga iniciada. Si no aparece, usa «Copiar texto».'}
+    catch(e){$('xp-note').textContent='Este visor no permite descargas. Usa «Copiar texto».'}
+  });
+}
 
 }
 </script>
